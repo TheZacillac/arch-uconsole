@@ -1,4 +1,4 @@
-From 87ef3e5dcd1f2614fc2270de0014f0ccd08f5a1d Mon Sep 17 00:00:00 2001
+From d039190c9c3a27391f4cf5bbb1f139c5cf2a7125 Mon Sep 17 00:00:00 2001
 From: Zac Roach <zacroach@me.com>
 Date: Wed, 15 Apr 2026 13:54:11 -0700
 Subject: [PATCH] uConsole CM4 patches (rebased onto rpi-6.12.y)
@@ -20,8 +20,8 @@ Subject: [PATCH] uConsole CM4 patches (rebased onto rpi-6.12.y)
  drivers/power/supply/axp20x_battery.c         |  36 ++
  drivers/video/backlight/Kconfig               |   6 +
  drivers/video/backlight/Makefile              |   1 +
- drivers/video/backlight/ocp8178_bl.c          | 277 ++++++++++
- 17 files changed, 1513 insertions(+), 8 deletions(-)
+ drivers/video/backlight/ocp8178_bl.c          | 268 ++++++++++
+ 17 files changed, 1504 insertions(+), 8 deletions(-)
  create mode 100755 arch/arm/boot/dts/overlays/devterm-bt-overlay.dts
  create mode 100644 arch/arm/boot/dts/overlays/devterm-misc-overlay.dts
  create mode 100644 arch/arm/boot/dts/overlays/devterm-panel-overlay.dts
@@ -1414,10 +1414,10 @@ index 631227dfc..cf92b73f5 100644
 +obj-$(CONFIG_BACKLIGHT_OCP8178)		+= ocp8178_bl.o
 diff --git a/drivers/video/backlight/ocp8178_bl.c b/drivers/video/backlight/ocp8178_bl.c
 new file mode 100644
-index 000000000..db8db1771
+index 000000000..f5d9c7336
 --- /dev/null
 +++ b/drivers/video/backlight/ocp8178_bl.c
-@@ -0,0 +1,277 @@
+@@ -0,0 +1,268 @@
 +/*
 + * ocp8178_bl.c - ocp8178 backlight driver
 + *
@@ -1549,7 +1549,6 @@ index 000000000..db8db1771
 +	int brightness = bl->props.brightness, i;
 +
 +	if (bl->props.power != FB_BLANK_UNBLANK ||
-+	    bl->props.fb_blank != FB_BLANK_UNBLANK ||
 +	    bl->props.state & (BL_CORE_SUSPENDED | BL_CORE_FBBLANK))
 +		brightness = 0;
 +
@@ -1571,18 +1570,10 @@ index 000000000..db8db1771
 +	return gbl->current_value;
 +}
 +
-+static int ocp8178_check_fb(struct backlight_device *bl,
-+				   struct fb_info *info)
-+{
-+	struct ocp8178_backlight *gbl = bl_get_data(bl);
-+	return gbl->fbdev == NULL || gbl->fbdev == info->dev;
-+}
-+
 +static const struct backlight_ops ocp8178_backlight_ops = {
 +	.options	= BL_CORE_SUSPENDRESUME,
 +	.update_status	= ocp8178_update_status,
 +	.get_brightness = ocp8178_get_brightness,
-+	.check_fb	= ocp8178_check_fb,
 +};
 +
 +static int ocp8178_probe_dt(struct platform_device *pdev,

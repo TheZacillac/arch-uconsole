@@ -1,0 +1,16 @@
+# Maintainer: arch-uconsole <noreply@example.org>
+# Stub PKGBUILD — replaced in Plan 2 Task 5 with the real kernel recipe.
+
+pkgname=linux-uconsole-cm4
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="uConsole CM4 kernel (stub — not yet built)"
+arch=('aarch64')
+url="https://github.com/TheZacillac/arch-uconsole"
+license=('GPL2')
+
+package() {
+    install -dm755 "${pkgdir}/usr/share/doc/linux-uconsole-cm4"
+    printf 'stub\n' > "${pkgdir}/usr/share/doc/linux-uconsole-cm4/STATUS"
+    chmod 644 "${pkgdir}/usr/share/doc/linux-uconsole-cm4/STATUS"
+}

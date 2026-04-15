@@ -26,7 +26,7 @@ Add to `/etc/pacman.conf`:
 Then import the signing key:
 
     sudo pacman-key --add /path/to/uconsole-signing.asc
-    sudo pacman-key --lsign-key <KEY-FINGERPRINT>
+    sudo pacman-key --lsign-key 4B13F2558FF8B2D34E20F740A1A18BAF0DC6E364
     sudo pacman -Sy
 
 ## License

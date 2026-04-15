@@ -84,9 +84,12 @@ jobs:
           [ -f "${dir}/PKGBUILD" ] || { echo "no PKGBUILD"; exit 2; }
           mkdir -p artifacts
           chown -R builder:builder .
+          # --ignore-arch lets us cross-compile aarch64 packages (the
+          # kernel) on an x86_64 runner using aarch64-linux-gnu-gcc.
+          # Packages with arch=('any') are unaffected.
           sudo -u builder bash -c "
             cd '${dir}' &&
-            makepkg -s --noconfirm --sign --key '${KEY_FPR}'
+            makepkg -s --noconfirm --sign --key '${KEY_FPR}' --ignore-arch
           "
           mv "${dir}"/*.pkg.tar.zst "${dir}"/*.pkg.tar.zst.sig artifacts/
           ls -la artifacts/

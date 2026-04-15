@@ -5,7 +5,9 @@ pkgname=linux-uconsole-cm4
 pkgver=0.0.0
 pkgrel=1
 pkgdesc="uConsole CM4 kernel (stub — not yet built)"
-arch=('aarch64')
+# Stub ships only a doc file; arch='any' lets CI x86_64 build pass.
+# Task 5 replaces this with arch=('aarch64') for the real kernel.
+arch=('any')
 url="https://github.com/TheZacillac/arch-uconsole"
 license=('GPL2')
 

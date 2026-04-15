@@ -2,9 +2,9 @@
 #
 # uconsole-dtbs — uConsole device tree overlays + boot config templates.
 # Shared between CM4 and CM5. Compiles .dts overlays to .dtbo at build
-# time; boot/<target>/{config,cmdline}.txt templates installed to
-# /usr/share/uconsole/boot/<target>/ for the bootstrap script to place
-# on /boot at install time.
+# time; per-CM config.txt / cmdline.txt templates ship to
+# /usr/share/uconsole/boot/<cm>/ for the bootstrap script to copy onto
+# /boot/ at install time.
 
 pkgname=uconsole-dtbs
 pkgver=20260415
@@ -15,10 +15,14 @@ url="https://github.com/TheZacillac/arch-uconsole"
 license=('MIT')
 makedepends=('dtc')
 
+# Local sources must be bare filenames in the PKGBUILD directory.
+# We flatten per-CM boot files into cmN-suffixed basenames here, and
+# package() distributes them to per-CM subdirectories of
+# /usr/share/uconsole/boot/.
 source=(
-    'overlays/uconsole-base.dts'
-    'boot/cm4/config.txt'
-    'boot/cm4/cmdline.txt'
+    'uconsole-base.dts'
+    'config-cm4.txt'
+    'cmdline-cm4.txt'
 )
 sha256sums=(
     'SKIP' 'SKIP' 'SKIP'
@@ -39,11 +43,11 @@ package() {
 
     # Compiled overlays shared across all CMs:
     install -dm755 "${pkgdir}/boot/overlays"
-    install -Dm644 uconsole-base.dtbo "${pkgdir}/boot/overlays/"
+    install -Dm644 uconsole-base.dtbo "${pkgdir}/boot/overlays/uconsole-base.dtbo"
 
     # Per-CM boot config templates (bootstrap picks the right one):
-    install -Dm644 "${startdir}/boot/cm4/config.txt" \
+    install -Dm644 config-cm4.txt \
         "${pkgdir}/usr/share/uconsole/boot/cm4/config.txt"
-    install -Dm644 "${startdir}/boot/cm4/cmdline.txt" \
+    install -Dm644 cmdline-cm4.txt \
         "${pkgdir}/usr/share/uconsole/boot/cm4/cmdline.txt"
 }

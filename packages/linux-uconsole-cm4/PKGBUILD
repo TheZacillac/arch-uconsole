@@ -39,14 +39,18 @@ _srcdir="linux-${_rpisha}"
 prepare() {
     cd "${_srcdir}"
 
-    # Patches live under packages/linux-uconsole-cm4/patches/ — accessed via
-    # ${startdir} (not source=()) because makepkg forbids subdirectory paths
-    # in source for local files. Patch integrity is tracked via git.
-    echo "::> applying uConsole patch series"
-    for p in "${startdir}"/patches/*.patch; do
-        echo "    $(basename "$p")"
-        patch -Np1 -i "$p"
-    done
+    # Patches (if any) live under packages/linux-uconsole-cm4/patches/.
+    # As of rpi-6.12.y, upstream has absorbed all ClockworkPi changes;
+    # this loop is a no-op unless future patches are added.
+    if ls "${startdir}"/patches/*.patch >/dev/null 2>&1; then
+        echo "::> applying uConsole patch series"
+        for p in "${startdir}"/patches/*.patch; do
+            echo "    $(basename "$p")"
+            patch -Np1 -i "$p"
+        done
+    else
+        echo "::> no patches to apply (all upstream in rpi-6.12.y)"
+    fi
 
     echo "::> installing config"
     cp -v "${srcdir}/config" .config

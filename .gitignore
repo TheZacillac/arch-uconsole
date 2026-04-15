@@ -1,0 +1,24 @@
+# Build artifacts
+*.pkg.tar.zst
+*.pkg.tar.zst.sig
+*.tar.gz
+*.tar.xz
+src/
+pkg/
+
+# Image builder outputs
+image-builder/build/
+image-builder/out/
+image-builder/cache/
+
+# Editor cruft
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# GPG secret exports (should never be committed)
+*.gpg
+*.asc.private
+private-key*

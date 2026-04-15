@@ -1,0 +1,23 @@
+# uConsole CM4 boot configuration
+# Installed by pacman package uconsole-dtbs.
+
+arm_64bit=1
+enable_uart=1
+kernel=kernel8.img
+
+# DSI display (5" 720x1280 uConsole panel)
+dtoverlay=uconsole-base
+
+# Enable I2C for the keyboard + PMIC
+dtparam=i2c_arm=on,i2c_arm_baudrate=400000
+
+# Enable SPI for the optional LoRa expansion (harmless if absent)
+dtparam=spi=on
+
+# Audio (WM8960 on I2S)
+dtparam=audio=off
+dtoverlay=wm8960-soundcard
+
+# HDMI fallback — keep enabled so the user can plug into a TV for recovery
+dtparam=i2c_vc=on
+hdmi_force_hotplug=1

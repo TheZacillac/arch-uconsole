@@ -1,0 +1,16 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2711";
+
+    // Placeholder overlay. Replaced in Plan 4 with full panel + keyboard
+    // bindings once the kernel driver DT bindings are finalized.
+
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+            uconsole-base-marker = "placeholder";
+        };
+    };
+};

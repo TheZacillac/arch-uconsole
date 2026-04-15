@@ -29,32 +29,51 @@ jobs:
           echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
           chown -R builder:builder "$PWD"
 
-      - name: Import signing key
+      - name: Import signing key and configure loopback pinentry
         env:
           KEY_ASC: ${{ secrets.UCONSOLE_SIGNING_KEY_ASC }}
-          KEY_FPR: ${{ secrets.UCONSOLE_SIGNING_KEY_FPR }}
-        run: |
-          mkdir -p /home/builder/.gnupg
-          chmod 700 /home/builder/.gnupg
-          chown -R builder:builder /home/builder/.gnupg
-          echo "$KEY_ASC" | sudo -u builder gpg --batch --import
-          echo "${KEY_FPR}:6:" | sudo -u builder gpg --batch --import-ownertrust
-
-      - name: Build and sign every PKGBUILD
-        env:
           KEY_FPR: ${{ secrets.UCONSOLE_SIGNING_KEY_FPR }}
           GPG_PASSPHRASE: ${{ secrets.UCONSOLE_SIGNING_KEY_PASSPHRASE }}
         run: |
           set -euo pipefail
+          # Build a gpg config under the builder user so makepkg --sign
+          # (which shells out to gpg unattended) has a primed agent.
+          sudo -u builder mkdir -p /home/builder/.gnupg
+          sudo -u builder chmod 700 /home/builder/.gnupg
+          sudo -u builder tee /home/builder/.gnupg/gpg-agent.conf >/dev/null <<'EOF'
+          allow-loopback-pinentry
+          EOF
+          sudo -u builder tee /home/builder/.gnupg/gpg.conf >/dev/null <<'EOF'
+          pinentry-mode loopback
+          use-agent
+          EOF
+          sudo -u builder gpgconf --launch gpg-agent
+          printf '%s' "$KEY_ASC" | sudo -u builder gpg --batch --import
+          printf '%s:6:\n' "$KEY_FPR" | sudo -u builder gpg --batch --import-ownertrust
+          # Prime the agent cache via a throwaway detach-sign so the
+          # passphrase is held in memory for subsequent makepkg --sign
+          # invocations.
+          printf 'prime' | sudo -u builder env GPG_PASSPHRASE="$GPG_PASSPHRASE" \
+            gpg --batch --yes --pinentry-mode loopback \
+                --passphrase "$GPG_PASSPHRASE" \
+                --local-user "$KEY_FPR" \
+                --detach-sign --output /dev/null
+
+      - name: Build and sign every PKGBUILD
+        env:
+          KEY_FPR: ${{ secrets.UCONSOLE_SIGNING_KEY_FPR }}
+        run: |
+          set -euo pipefail
           mkdir -p artifacts
+          # Let the builder user own the checkout so makepkg can write
+          # src/, pkg/, and the final .pkg.tar.zst into the source dirs.
+          chown -R builder:builder .
           for dir in packages/*/; do
             [ -f "${dir}PKGBUILD" ] || continue
             echo "--- Building ${dir}"
             sudo -u builder bash -c "
-              cd '${dir}' && \
-              echo '${GPG_PASSPHRASE}' | \
-              makepkg -s --noconfirm --sign --key '${KEY_FPR}' \
-                --gpg-options '--pinentry-mode loopback --batch --passphrase-fd 0'
+              cd '${dir}' &&
+              makepkg -s --noconfirm --sign --key '${KEY_FPR}'
             "
             mv "${dir}"*.pkg.tar.zst "${dir}"*.pkg.tar.zst.sig artifacts/
           done

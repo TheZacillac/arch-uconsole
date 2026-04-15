@@ -1,0 +1,77 @@
+#!/bin/sh
+# uconsole-bootstrap — add the [uconsole] pacman repo and trust the signing key.
+#
+# Scope (Plan 1 of arch-uconsole): repo registration + key trust only.
+# Package installation logic arrives in Plan 3.
+#
+# Usage (as root):
+#   curl -fsSL https://TheZacillac.github.io/arch-uconsole/aarch64/uconsole-signing.asc \
+#     | uconsole-bootstrap --trust-key -
+#   uconsole-bootstrap --add-repo
+#
+# Or with everything in one go:
+#   uconsole-bootstrap
+
+set -eu
+
+REPO_URL_DEFAULT="https://TheZacillac.github.io/arch-uconsole/\$arch"
+KEY_URL_DEFAULT="https://TheZacillac.github.io/arch-uconsole/aarch64/uconsole-signing.asc"
+KEY_FPR_DEFAULT="4B13F2558FF8B2D34E20F740A1A18BAF0DC6E364"
+PACMAN_CONF="${PACMAN_CONF:-/etc/pacman.conf}"
+SENTINEL_DIR="/var/lib/uconsole"
+SENTINEL_FILE="${SENTINEL_DIR}/bootstrap.done"
+
+log() { printf '[uconsole-bootstrap] %s\n' "$*" >&2; }
+die() { log "ERROR: $*"; exit 1; }
+
+require_root() {
+    [ "$(id -u)" -eq 0 ] || die "must run as root"
+}
+
+add_repo() {
+    if grep -q '^\[uconsole\]' "$PACMAN_CONF"; then
+        log "[uconsole] already present in $PACMAN_CONF; skipping"
+        return 0
+    fi
+    log "appending [uconsole] section to $PACMAN_CONF"
+    cat >> "$PACMAN_CONF" <<EOF
+
+[uconsole]
+SigLevel = Required DatabaseOptional
+Server = ${REPO_URL_DEFAULT}
+EOF
+}
+
+trust_key() {
+    log "fetching signing key from ${KEY_URL_DEFAULT}"
+    tmp=$(mktemp)
+    trap 'rm -f "$tmp"' EXIT
+    curl -fsSL "$KEY_URL_DEFAULT" -o "$tmp"
+    pacman-key --add "$tmp"
+    pacman-key --lsign-key "$KEY_FPR_DEFAULT"
+}
+
+refresh() {
+    pacman -Sy
+}
+
+finalize() {
+    mkdir -p "$SENTINEL_DIR"
+    {
+        printf 'bootstrap_version=1\n'
+        printf 'repo_url=%s\n' "$REPO_URL_DEFAULT"
+        printf 'key_fpr=%s\n' "$KEY_FPR_DEFAULT"
+        printf 'timestamp=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$SENTINEL_FILE"
+}
+
+main() {
+    require_root
+    add_repo
+    trust_key
+    refresh
+    finalize
+    log "done. you can now: pacman -S uconsole-hello"
+}
+
+main "$@"

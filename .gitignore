@@ -1,10 +1,13 @@
-# Build artifacts
-*.pkg.tar.zst
-*.pkg.tar.zst.sig
-*.tar.gz
-*.tar.xz
-src/
-pkg/
+# Build artifacts produced by makepkg (any depth)
+**/src/
+**/pkg/
+**/*.pkg.tar.zst
+**/*.pkg.tar.zst.sig
+
+# Downloaded source tarballs cached by makepkg under src/
+# (already covered by **/src/, listed separately for clarity)
+**/linux-*.tar.*
+**/rpi-firmware-*.tar.*
 
 # Image builder outputs
 image-builder/build/

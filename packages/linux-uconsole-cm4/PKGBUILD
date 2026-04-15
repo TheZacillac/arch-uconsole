@@ -27,11 +27,9 @@ source=(
     "linux-${_rpisha}.tar.gz::https://github.com/raspberrypi/linux/archive/${_rpisha}.tar.gz"
     'config'
     'linux.install'
-    'patches/0001-uConsole-CM4-patches-rebased-onto-rpi-6.12.y.patch'
 )
 sha256sums=(
     'a6c09135b730a8a3dbabc2c5408289ccaaafcfb9190a2cccdfb9648fded0ef7a'
-    'SKIP'
     'SKIP'
     'SKIP'
 )
@@ -41,8 +39,11 @@ _srcdir="linux-${_rpisha}"
 prepare() {
     cd "${_srcdir}"
 
+    # Patches live under packages/linux-uconsole-cm4/patches/ — accessed via
+    # ${startdir} (not source=()) because makepkg forbids subdirectory paths
+    # in source for local files. Patch integrity is tracked via git.
     echo "::> applying uConsole patch series"
-    for p in "${srcdir}"/*.patch; do
+    for p in "${startdir}"/patches/*.patch; do
         echo "    $(basename "$p")"
         patch -Np1 -i "$p"
     done

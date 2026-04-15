@@ -1,0 +1,16 @@
+# Maintainer: arch-uconsole <noreply@example.org>
+
+pkgname=uconsole-hello
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Stub package for smoke-testing the [uconsole] pacman repo"
+arch=('any')
+url="https://github.com/TheZacillac/arch-uconsole"
+license=('MIT')
+
+package() {
+    install -dm755 "${pkgdir}/usr/share/doc/uconsole-hello"
+    printf 'hello from uconsole-hello %s\n' "${pkgver}" \
+        > "${pkgdir}/usr/share/doc/uconsole-hello/HELLO"
+    chmod 644 "${pkgdir}/usr/share/doc/uconsole-hello/HELLO"
+}

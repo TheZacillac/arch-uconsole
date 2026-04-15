@@ -59,8 +59,13 @@ jobs:
           set -euo pipefail
           sudo -u builder mkdir -p /home/builder/.gnupg
           sudo -u builder chmod 700 /home/builder/.gnupg
+          # Long TTLs so the passphrase cache survives multi-hour kernel
+          # builds. Default is 600s/7200s (10m/2h) which expires during
+          # cross-compiled kernel builds that take 40+ min.
           sudo -u builder tee /home/builder/.gnupg/gpg-agent.conf >/dev/null <<'EOF'
           allow-loopback-pinentry
+          default-cache-ttl 86400
+          max-cache-ttl 86400
           EOF
           sudo -u builder tee /home/builder/.gnupg/gpg.conf >/dev/null <<'EOF'
           pinentry-mode loopback
@@ -86,8 +91,10 @@ jobs:
           chown -R builder:builder .
           # --ignorearch lets us cross-compile aarch64 packages (the
           # kernel) on an x86_64 runner using aarch64-linux-gnu-gcc.
-          # Packages with arch=('any') are unaffected.
-          sudo -u builder bash -c "
+          # CARCH=aarch64 ensures the output .pkg.tar.zst is tagged for
+          # the target architecture (not the host). Packages with
+          # arch=('any') are unaffected.
+          sudo -u builder env CARCH=aarch64 bash -c "
             cd '${dir}' &&
             makepkg -s --noconfirm --sign --key '${KEY_FPR}' --ignorearch
           "

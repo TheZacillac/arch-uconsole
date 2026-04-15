@@ -1,16 +1,13 @@
 #!/bin/sh
-# uconsole-bootstrap — add the [uconsole] pacman repo and trust the signing key.
+# uconsole-bootstrap — add the [uconsole] pacman repo, trust its signing
+# key, and (when running on real uConsole hardware) install the matching
+# kernel + firmware + dtbs packages.
 #
-# Scope (Plan 1 of arch-uconsole): repo registration + key trust only.
-# Package installation logic arrives in Plan 3.
-#
-# Usage (as root):
-#   curl -fsSL https://TheZacillac.github.io/arch-uconsole/aarch64/uconsole-signing.asc \
-#     | uconsole-bootstrap --trust-key -
-#   uconsole-bootstrap --add-repo
-#
-# Or with everything in one go:
+# Usage (as root, on an Arch Linux ARM install):
 #   uconsole-bootstrap
+#
+# Running on non-uConsole hardware (e.g., in a container) is safe — the
+# repo is still added, but the kernel stack install is skipped.
 
 set -eu
 
@@ -45,7 +42,8 @@ EOF
 trust_key() {
     log "fetching signing key from ${KEY_URL_DEFAULT}"
     tmp=$(mktemp)
-    trap 'rm -f "$tmp"' EXIT
+    # shellcheck disable=SC2064
+    trap "rm -f '$tmp'" EXIT
     curl -fsSL "$KEY_URL_DEFAULT" -o "$tmp"
     pacman-key --add "$tmp"
     pacman-key --lsign-key "$KEY_FPR_DEFAULT"
@@ -55,10 +53,49 @@ refresh() {
     pacman -Sy
 }
 
+detect_cm() {
+    model=""
+    if [ -r /proc/device-tree/model ]; then
+        model=$(tr -d '\0' < /proc/device-tree/model)
+    fi
+    case "$model" in
+        *"Compute Module 4"*) echo cm4 ;;
+        *"Compute Module 5"*) echo cm5 ;;
+        *) echo "" ;;
+    esac
+}
+
+install_kernel_stack() {
+    cm="$1"
+    if [ -z "$cm" ]; then
+        log "no ClockworkPi / CM detected; skipping kernel install"
+        log "(re-run this script on real hardware to install the kernel)"
+        return 0
+    fi
+    log "detected compute module: ${cm}"
+    log "installing linux-uconsole-${cm}, uconsole-firmware-${cm}, uconsole-dtbs"
+    pacman -S --noconfirm --needed \
+        "linux-uconsole-${cm}" \
+        "uconsole-firmware-${cm}" \
+        uconsole-dtbs
+
+    tmpl_dir="/usr/share/uconsole/boot/${cm}"
+    if [ -d "${tmpl_dir}" ]; then
+        for f in config.txt cmdline.txt; do
+            if [ ! -e "/boot/${f}" ]; then
+                log "installing default /boot/${f} from ${tmpl_dir}"
+                install -Dm644 "${tmpl_dir}/${f}" "/boot/${f}"
+            else
+                log "/boot/${f} already exists; leaving untouched"
+            fi
+        done
+    fi
+}
+
 finalize() {
     mkdir -p "$SENTINEL_DIR"
     {
-        printf 'bootstrap_version=1\n'
+        printf 'bootstrap_version=2\n'
         printf 'repo_url=%s\n' "$REPO_URL_DEFAULT"
         printf 'key_fpr=%s\n' "$KEY_FPR_DEFAULT"
         printf 'timestamp=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -70,8 +107,9 @@ main() {
     add_repo
     trust_key
     refresh
+    install_kernel_stack "$(detect_cm)"
     finalize
-    log "done. you can now: pacman -S uconsole-hello"
+    log "done."
 }
 
 main "$@"

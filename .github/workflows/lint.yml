@@ -30,7 +30,10 @@ jobs:
           shellcheck $files
 
   namcap:
-    runs-on: ubuntu-24.04-arm
+    # namcap is static analysis on PKGBUILDs — architecture-agnostic.
+    # Run on x86_64 so the official archlinux:latest image pulls cleanly
+    # (Arch does not publish an aarch64 variant).
+    runs-on: ubuntu-24.04
     container:
       image: archlinux:latest
     steps:

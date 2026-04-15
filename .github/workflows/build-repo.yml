@@ -19,7 +19,9 @@ concurrency:
 jobs:
   assemble:
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-24.04-arm
+    # Repo db assembly is architecture-agnostic; run on x86_64 so the
+    # official archlinux image pulls (no aarch64 variant exists).
+    runs-on: ubuntu-24.04
     container:
       image: archlinux:latest
     steps:

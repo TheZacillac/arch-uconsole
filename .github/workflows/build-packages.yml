@@ -10,7 +10,12 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    # Our only package for now (uconsole-hello) is arch=('any'), so
+    # building on x86_64 is fine and lets us use the official archlinux
+    # image (no aarch64 variant exists). When Plan 2 introduces
+    # aarch64-specific kernel packages we will switch to an aarch64
+    # runner + archlinuxarm-compatible image (or cross-compile).
+    runs-on: ubuntu-24.04
     container:
       image: archlinux:latest
       options: --privileged

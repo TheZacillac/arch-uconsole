@@ -1,0 +1,56 @@
+name: Lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on shell scripts
+        run: |
+          set -euo pipefail
+          files=$(find bootstrap image-builder scripts 2>/dev/null -type f \
+            \( -name '*.sh' -o -name 'uconsole-*' \) \
+            -not -name '*.md' || true)
+          if [ -z "$files" ]; then
+            echo "No shell scripts to lint yet; skipping."
+            exit 0
+          fi
+          echo "Linting: $files"
+          # shellcheck disable=SC2086
+          shellcheck $files
+
+  namcap:
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install namcap
+        run: pacman -Syu --noconfirm namcap
+
+      - name: Run namcap on every PKGBUILD
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          found=0
+          for dir in packages/*/; do
+            if [ -f "${dir}PKGBUILD" ]; then
+              found=1
+              echo "--- ${dir}PKGBUILD"
+              namcap "${dir}PKGBUILD"
+            fi
+          done
+          if [ "$found" = 0 ]; then
+            echo "No PKGBUILDs found; skipping."
+          fi

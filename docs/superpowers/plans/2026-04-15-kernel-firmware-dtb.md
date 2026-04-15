@@ -1651,9 +1651,16 @@ cleanly apply, triage with `gh run view --log-failed`.
 Now that CM5 has a kernel, add its boot templates to the shared dtbs
 package.
 
-- [ ] **Step 1: Create `boot/cm5/config.txt`**
+> **Note (Task 8 learned):** makepkg's local `source=()` entries must be
+> bare filenames in the PKGBUILD directory — subpaths like
+> `'overlays/foo.dts'` fail with "not found in the build directory". The
+> Task 8 implementer flattened the layout accordingly, so CM5 just adds
+> two more bare files (`config-cm5.txt`, `cmdline-cm5.txt`) alongside
+> the existing flat files.
 
-Create `packages/uconsole-dtbs/boot/cm5/config.txt`:
+- [ ] **Step 1: Create `config-cm5.txt`**
+
+Create `packages/uconsole-dtbs/config-cm5.txt`:
 
 ```
 # uConsole CM5 boot configuration
@@ -1672,9 +1679,10 @@ dtparam=i2c_vc=on
 hdmi_force_hotplug=1
 ```
 
-- [ ] **Step 2: Create `boot/cm5/cmdline.txt`**
+- [ ] **Step 2: Create `cmdline-cm5.txt`**
 
-Create `packages/uconsole-dtbs/boot/cm5/cmdline.txt`:
+Create `packages/uconsole-dtbs/cmdline-cm5.txt` (one line, NO trailing
+newline — same as CM4):
 
 ```
 root=LABEL=ROOT rw rootwait console=serial0,115200 console=tty1 fsck.repair=yes
@@ -1684,37 +1692,16 @@ root=LABEL=ROOT rw rootwait console=serial0,115200 console=tty1 fsck.repair=yes
 
 - [ ] **Step 3: Update the dtbs PKGBUILD to ship both sets**
 
-Modify `packages/uconsole-dtbs/PKGBUILD`. Replace the `source=(...)` and
-`package()` blocks:
+Modify `packages/uconsole-dtbs/PKGBUILD`. Add the two CM5 filenames to
+the `source=()` array and let `package()` loop over both CMs:
 
 ```bash
 source=(
-    'overlays/uconsole-base.dts'
-    'boot/cm4/config.txt'
-    'boot/cm4/cmdline.txt'
-    'boot/cm5/config.txt'
-    'boot/cm5/cmdline.txt'
-)
-sha256sums=(
-    'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
-)
-```
-
-(`source` entries with the same basename would collide; makepkg will
-fail if you list `config.txt` twice. The trick is that makepkg uses the
-file basename from the source URL. Our source entries are local paths;
-the basenames `config.txt` and `cmdline.txt` DO collide across cm4/cm5.)
-
-Fix: rename with unique basenames in the source array using the
-`rename::path` syntax:
-
-```bash
-source=(
-    'overlays/uconsole-base.dts'
-    'config-cm4.txt::boot/cm4/config.txt'
-    'cmdline-cm4.txt::boot/cm4/cmdline.txt'
-    'config-cm5.txt::boot/cm5/config.txt'
-    'cmdline-cm5.txt::boot/cm5/cmdline.txt'
+    'uconsole-base.dts'
+    'config-cm4.txt'
+    'cmdline-cm4.txt'
+    'config-cm5.txt'
+    'cmdline-cm5.txt'
 )
 sha256sums=(
     'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
@@ -1728,7 +1715,7 @@ package() {
     cd "${srcdir}"
 
     install -dm755 "${pkgdir}/boot/overlays"
-    install -Dm644 uconsole-base.dtbo "${pkgdir}/boot/overlays/"
+    install -Dm644 uconsole-base.dtbo "${pkgdir}/boot/overlays/uconsole-base.dtbo"
 
     for cm in cm4 cm5; do
         install -Dm644 "config-${cm}.txt" \

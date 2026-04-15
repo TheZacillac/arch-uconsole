@@ -50,8 +50,8 @@ jobs:
           printf 'allow-loopback-pinentry\n' > ~/.gnupg/gpg-agent.conf
           printf 'pinentry-mode loopback\nuse-agent\n' > ~/.gnupg/gpg.conf
           gpgconf --launch gpg-agent
-          echo "$KEY_ASC" | gpg --batch --import
-          echo "${KEY_FPR}:6:" | gpg --batch --import-ownertrust
+          printf '%s' "$KEY_ASC" | gpg --batch --import
+          printf '%s:6:\n' "$KEY_FPR" | gpg --batch --import-ownertrust
           # Prime the agent cache with the passphrase so repo-add --sign
           # (which shells out to gpg) can sign unattended.
           printf 'prime' | gpg --batch --yes --pinentry-mode loopback \

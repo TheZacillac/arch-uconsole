@@ -67,3 +67,28 @@ Image artifacts are signed with the same key. Users verify with
 The published pacman repo lives at
 `https://TheZacillac.github.io/arch-uconsole/aarch64/`. The bootstrap
 script hardcodes this URL + the key fingerprint.
+
+## Known gotchas
+
+### Pacman Landlock sandbox in containers
+
+Recent `pacman` (>= 7.0) applies a Landlock-based filesystem sandbox to
+its download phase, running as the `alpm` user. That sandbox cannot be
+established in most rootless Docker / Podman containers — `pacman -Sy`
+errors with:
+
+    error: restricting filesystem access failed because the Landlock
+    ruleset could not be applied: Operation not permitted
+    error: switching to sandbox user 'alpm' failed!
+
+Two workarounds (either works):
+
+    # Per invocation
+    pacman -Sy --disable-sandbox
+
+    # Persistent for the container session
+    sed -i 's|^DownloadUser|#DownloadUser|' /etc/pacman.conf
+
+This is a container-runtime limitation, not a repo defect. The
+`uconsole-bootstrap` script is intended to run on a real Arch Linux ARM
+install (TTY or chroot), where the sandbox functions correctly.

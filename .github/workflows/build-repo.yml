@@ -22,8 +22,6 @@ jobs:
     runs-on: ubuntu-24.04-arm
     container:
       image: archlinux:latest
-    outputs:
-      artifact-name: ${{ steps.package.outputs.name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,18 +36,30 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Import signing key
+      - name: Import signing key and configure loopback pinentry
         env:
           KEY_ASC: ${{ secrets.UCONSOLE_SIGNING_KEY_ASC }}
           KEY_FPR: ${{ secrets.UCONSOLE_SIGNING_KEY_FPR }}
+          GPG_PASSPHRASE: ${{ secrets.UCONSOLE_SIGNING_KEY_PASSPHRASE }}
         run: |
+          set -euo pipefail
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          printf 'allow-loopback-pinentry\n' > ~/.gnupg/gpg-agent.conf
+          printf 'pinentry-mode loopback\nuse-agent\n' > ~/.gnupg/gpg.conf
+          gpgconf --launch gpg-agent
           echo "$KEY_ASC" | gpg --batch --import
           echo "${KEY_FPR}:6:" | gpg --batch --import-ownertrust
+          # Prime the agent cache with the passphrase so repo-add --sign
+          # (which shells out to gpg) can sign unattended.
+          printf 'prime' | gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --local-user "$KEY_FPR" \
+            --detach-sign --output /dev/null
 
       - name: Assemble repo database
         env:
           KEY_FPR: ${{ secrets.UCONSOLE_SIGNING_KEY_FPR }}
-          GPG_PASSPHRASE: ${{ secrets.UCONSOLE_SIGNING_KEY_PASSPHRASE }}
         run: |
           set -euo pipefail
           cd aarch64

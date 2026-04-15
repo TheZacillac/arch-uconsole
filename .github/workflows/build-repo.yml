@@ -1,0 +1,97 @@
+name: Build & Publish Repo
+
+on:
+  workflow_run:
+    workflows: ["Build Packages"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  assemble:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04-arm
+    container:
+      image: archlinux:latest
+    outputs:
+      artifact-name: ${{ steps.package.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tooling
+        run: pacman -Syu --noconfirm pacman-contrib git unzip
+
+      - name: Download built packages
+        uses: actions/download-artifact@v4
+        with:
+          name: uconsole-packages
+          path: aarch64/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Import signing key
+        env:
+          KEY_ASC: ${{ secrets.UCONSOLE_SIGNING_KEY_ASC }}
+          KEY_FPR: ${{ secrets.UCONSOLE_SIGNING_KEY_FPR }}
+        run: |
+          echo "$KEY_ASC" | gpg --batch --import
+          echo "${KEY_FPR}:6:" | gpg --batch --import-ownertrust
+
+      - name: Assemble repo database
+        env:
+          KEY_FPR: ${{ secrets.UCONSOLE_SIGNING_KEY_FPR }}
+          GPG_PASSPHRASE: ${{ secrets.UCONSOLE_SIGNING_KEY_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          cd aarch64
+          repo-add --sign --key "$KEY_FPR" uconsole.db.tar.gz *.pkg.tar.zst
+          ls -la
+
+      - name: Copy public key alongside repo
+        run: |
+          mkdir -p aarch64
+          cp keys/uconsole-signing.asc aarch64/uconsole-signing.asc
+
+      - name: Write landing index.html
+        run: |
+          cat > index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>arch-uconsole pacman repo</title>
+          <h1>arch-uconsole</h1>
+          <p>pacman repo for the <a href="https://github.com/${{ github.repository }}">arch-uconsole</a> project.</p>
+          <p>Add to <code>/etc/pacman.conf</code>:</p>
+          <pre>[uconsole]
+          SigLevel = Required DatabaseOptional
+          Server = https://${{ github.repository_owner }}.github.io/arch-uconsole/$arch</pre>
+          <p>Public signing key: <a href="aarch64/uconsole-signing.asc">uconsole-signing.asc</a></p>
+          HTML
+
+      - name: Stage Pages artifact
+        run: |
+          mkdir -p _site
+          cp -r aarch64 _site/
+          cp index.html _site/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site/
+
+  deploy:
+    needs: assemble
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,50 @@
+# Maintainer: arch-uconsole <noreply@example.org>
+#
+# uconsole-firmware-cm4 — RPi boot firmware bits needed for CM4 to boot
+# (bootcode.bin, start*.elf, fixup*.dat). Wraps raspberrypi/rpi-firmware
+# pinned to a tested SHA (see docs/upstream-refs.md).
+
+pkgname=uconsole-firmware-cm4
+pkgver=20260415
+_fwsha=2d264db2977759a12b755cd0b560ddd086d45bb6
+pkgrel=1
+pkgdesc="Raspberry Pi boot firmware (pinned) for uConsole CM4"
+arch=('any')
+url="https://github.com/TheZacillac/arch-uconsole"
+license=('custom:rpi-firmware')
+provides=('raspberrypi-firmware')
+conflicts=('raspberrypi-firmware')
+
+source=(
+    "rpi-firmware-${_fwsha}.tar.gz::https://github.com/raspberrypi/rpi-firmware/archive/${_fwsha}.tar.gz"
+)
+sha256sums=('24a43d0afe4b32c33316037cd61aa5e4a1d285f4534bb221bef66e28f041a013')
+
+package() {
+    local src="${srcdir}/rpi-firmware-${_fwsha}"
+    install -dm755 "${pkgdir}/boot"
+
+    # CM4 boot files (VideoCore VI bootchain):
+    local files=(
+        bootcode.bin
+        fixup.dat
+        fixup_cd.dat
+        fixup_x.dat
+        fixup4.dat
+        fixup4cd.dat
+        fixup4x.dat
+        start.elf
+        start_cd.elf
+        start_x.elf
+        start4.elf
+        start4cd.elf
+        start4x.elf
+    )
+    for f in "${files[@]}"; do
+        if [ -f "${src}/${f}" ]; then
+            install -Dm644 "${src}/${f}" "${pkgdir}/boot/${f}"
+        else
+            echo "::! ${f} missing upstream; skipping"
+        fi
+    done
+}

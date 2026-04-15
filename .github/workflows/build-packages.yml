@@ -9,12 +9,28 @@ on:
   workflow_dispatch:
 
 jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    outputs:
+      packages: ${{ steps.find.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: find
+        run: |
+          set -euo pipefail
+          pkgs=$(find packages -maxdepth 2 -name PKGBUILD -printf '%h\n' \
+            | xargs -I{} basename {} \
+            | jq -R . | jq -sc .)
+          echo "packages=${pkgs}" >> "$GITHUB_OUTPUT"
+          echo "discovered: ${pkgs}"
+
   build:
-    # Our only package for now (uconsole-hello) is arch=('any'), so
-    # building on x86_64 is fine and lets us use the official archlinux
-    # image (no aarch64 variant exists). When Plan 2 introduces
-    # aarch64-specific kernel packages we will switch to an aarch64
-    # runner + archlinuxarm-compatible image (or cross-compile).
+    needs: discover
+    if: ${{ needs.discover.outputs.packages != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.discover.outputs.packages) }}
     runs-on: ubuntu-24.04
     container:
       image: archlinux:latest
@@ -24,7 +40,12 @@ jobs:
 
       - name: Install build environment
         run: |
-          pacman -Syu --noconfirm base-devel git sudo
+          set -euo pipefail
+          pacman -Syu --noconfirm --disable-sandbox base-devel git sudo
+          # Cross toolchain for aarch64 kernel builds:
+          pacman -S --noconfirm --needed --disable-sandbox \
+            aarch64-linux-gnu-gcc aarch64-linux-gnu-binutils \
+            bc kmod cpio rsync perl xz pahole flex bison
           useradd -m -s /bin/bash builder
           echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
           chown -R builder:builder "$PWD"
@@ -36,8 +57,6 @@ jobs:
           GPG_PASSPHRASE: ${{ secrets.UCONSOLE_SIGNING_KEY_PASSPHRASE }}
         run: |
           set -euo pipefail
-          # Build a gpg config under the builder user so makepkg --sign
-          # (which shells out to gpg unattended) has a primed agent.
           sudo -u builder mkdir -p /home/builder/.gnupg
           sudo -u builder chmod 700 /home/builder/.gnupg
           sudo -u builder tee /home/builder/.gnupg/gpg-agent.conf >/dev/null <<'EOF'
@@ -50,35 +69,49 @@ jobs:
           sudo -u builder gpgconf --launch gpg-agent
           printf '%s' "$KEY_ASC" | sudo -u builder gpg --batch --import
           printf '%s:6:\n' "$KEY_FPR" | sudo -u builder gpg --batch --import-ownertrust
-          # Prime the agent cache via a throwaway detach-sign so the
-          # passphrase is held in memory for subsequent makepkg --sign
-          # invocations.
-          printf 'prime' | sudo -u builder env GPG_PASSPHRASE="$GPG_PASSPHRASE" \
-            gpg --batch --yes --pinentry-mode loopback \
-                --passphrase "$GPG_PASSPHRASE" \
-                --local-user "$KEY_FPR" \
-                --detach-sign --output /dev/null
+          printf 'prime' | sudo -u builder gpg --batch --yes \
+            --pinentry-mode loopback \
+            --passphrase "$GPG_PASSPHRASE" \
+            --local-user "$KEY_FPR" \
+            --detach-sign --output /dev/null
 
-      - name: Build and sign every PKGBUILD
+      - name: Build ${{ matrix.package }}
         env:
           KEY_FPR: ${{ secrets.UCONSOLE_SIGNING_KEY_FPR }}
         run: |
           set -euo pipefail
+          dir="packages/${{ matrix.package }}"
+          [ -f "${dir}/PKGBUILD" ] || { echo "no PKGBUILD"; exit 2; }
           mkdir -p artifacts
-          # Let the builder user own the checkout so makepkg can write
-          # src/, pkg/, and the final .pkg.tar.zst into the source dirs.
           chown -R builder:builder .
-          for dir in packages/*/; do
-            [ -f "${dir}PKGBUILD" ] || continue
-            echo "--- Building ${dir}"
-            sudo -u builder bash -c "
-              cd '${dir}' &&
-              makepkg -s --noconfirm --sign --key '${KEY_FPR}'
-            "
-            mv "${dir}"*.pkg.tar.zst "${dir}"*.pkg.tar.zst.sig artifacts/
-          done
+          sudo -u builder bash -c "
+            cd '${dir}' &&
+            makepkg -s --noconfirm --sign --key '${KEY_FPR}'
+          "
+          mv "${dir}"/*.pkg.tar.zst "${dir}"/*.pkg.tar.zst.sig artifacts/
           ls -la artifacts/
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.package }}
+          path: artifacts/
+          retention-days: 30
+
+  aggregate:
+    # Downstream build-repo workflow expects a single 'uconsole-packages'
+    # artifact. Aggregate the matrix results.
+    needs: build
+    if: ${{ always() && needs.build.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pkg-*
+          merge-multiple: true
+          path: artifacts/
+      - run: |
+          echo "=== aggregated artifacts ==="
+          ls -la artifacts/
       - uses: actions/upload-artifact@v4
         with:
           name: uconsole-packages
